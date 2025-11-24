@@ -1,0 +1,34 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# Jupyter checkpoints and outputs
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+*.nbconvert.ipynb
+
+# Data and model artifacts (keep source datasets already tracked)
+data/clean/*.csv
+data/raw/*.csv
+catboost_info/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+.vscode/
+.vscode-test/
+.idea/
+.history/
+
+# Logs and temp files
+*.log
+*.tmp
+tmp/
+
+# Executed notebooks (avoid committing heavy outputs)
+*-checkpoint.ipynb
+executed*.ipynb
