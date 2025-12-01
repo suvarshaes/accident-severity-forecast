@@ -19,5 +19,5 @@ def render_resume():
 
         """
     )
-    st.markdown("My Family")
-    st.image("20250719_113314~2.jpg", use_column_width=True)
+    st.markdown("### Hi, I'm Suvarsha!")
+    st.image("IMG_8491.jpg", width=300)

@@ -168,6 +168,27 @@ def render_accident_app():
 
     # Sidebar inputs (Planner-focused)
     st.sidebar.header("User inputs")
+    # Style the primary action button in the sidebar
+    st.sidebar.markdown(
+        """
+        <style>
+        div[data-testid="stSidebar"] button {
+            background: linear-gradient(90deg, #0b74da, #0a5fb3);
+            color: blue;
+            border-radius: 10px;
+            border: 1px solid #084f93;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            padding: 0.65rem 1.4rem;
+            box-shadow: 0 4px 10px rgba(11, 116, 218, 0.25);
+        }
+        div[data-testid="stSidebar"] button:hover {
+            background: linear-gradient(90deg, #0a5fb3, #094b8d);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
     st.sidebar.caption("Provide location, time-on-road, distance, and existing infrastructure. Weather and risk factors are auto-generated.")
     street_options = load_street_options()
     street_mapping = load_street_encoder()
@@ -289,9 +310,6 @@ def render_accident_app():
         available_to_add if available_to_add else infra_features,
         default=available_to_add[:3] if available_to_add else [],
     )
-
-    # Use a fixed set of higher-risk hours (evening/night) for scenarios
-    selected_hours = [18, 19, 20, 21, 22, 23]
 
     def build_scenarios(
         hours,
@@ -466,7 +484,7 @@ def render_accident_app():
         col1.metric("Most common outcome", most_common_label, delta=None)
         col2.metric("Scenario count", len(baseline_df))
         st.markdown(
-            f"*Location-aware insight:* For **{city}, {county}**, we evaluated high-risk evening/night scenarios across extreme weather and road conditions. "
+            f"*Location-aware insight:* For the city of **{city} in {county} county**, we evaluated high-risk evening/night scenarios across extreme weather and road conditions right in this county/city context. "
             f"The most frequent predicted outcome was **{most_common_label}** (worst observed: **{worst_label}**). "
             "Use this as a quick guide for planners and safety teams to target proactive interventions at this location."
         )
@@ -479,91 +497,60 @@ def render_accident_app():
             f"Overall, the model leans toward **{top_prob_label}** with an average confidence of {top_prob_value:.2f}. "
             "Use this as a quick headline: higher average confidence means the model is more certain about that outcome across the tested situations."
         )
-        st.caption(
-            "This location-aware view gives planners and safety officials a quick sense of which severity the model favors most, "
-            "helping prioritize proactive interventions at the chosen city/county."
-        )
-        st.caption("Weather/wind/season lists come from the training CSV categories; numeric factors use extreme samples to stress-test risk.")
-        if hasattr(model, "classes_"):
-            st.caption(f"Model classes: {', '.join(map(str, model.classes_))}")
-    
-            top_risky = baseline_df[baseline_labels == worst_label].copy()
-            top_risky["Confidence"] = top_risky["Probabilities"].apply(lambda d: max(d.values()) if isinstance(d, dict) else 0)
-            st.write("Top scenarios leading to highest severity (sorted by confidence):")
-            st.dataframe(
-                top_risky.sort_values("Confidence", ascending=False)
+        classes_text = ", ".join(map(str, model.classes_)) if hasattr(model, "classes_") else "Major, Moderate, Minor"
+        # Intentionally removed detailed model summary text per request
+        top_risky = baseline_df[baseline_labels == worst_label].copy()
+        top_risky["Confidence"] = top_risky["Probabilities"].apply(lambda d: max(d.values()) if isinstance(d, dict) else 0)
+        st.write("Top scenarios leading to highest severity (sorted by confidence):")
+        st.dataframe(
+            top_risky.sort_values("Confidence", ascending=False)
             .head(10)[
-                    [
-                        "Hour",
-                        "Weather_Short",
-                        "Wind_Direction_clean",
-                        "Season",
-                        "Temperature(F)",
-                        "Visibility(mi)",
-                        "Humidity(%)",
-                        "Pressure(in)",
-                        "Wind_Speed(mph)",
-                        "City",
-                        "Predicted_Severity",
-                        "Confidence",
-                    ]
+                [
+                    "Hour",
+                    "Weather_Short",
+                    "Wind_Direction_clean",
+                    "Season",
+                    "Temperature(F)",
+                    "Visibility(mi)",
+                    "Humidity(%)",
+                    "Pressure(in)",
+                    "Wind_Speed(mph)",
+                    "City",
+                    "Predicted_Severity",
+                    "Confidence",
                 ]
+            ]
+            .rename(
+                columns={
+                    "Weather_Short": "Weather",
+                    "Wind_Direction_clean": "Wind Direction",
+                    "Wind_Speed(mph)": "Wind Speed",
+                    "Predicted_Severity": "Severity",
+                }
             )
+        )
 
-            focus_top = top_risky.sort_values("Confidence", ascending=False).head(20)
-            high_risk_scenarios = list(
-                focus_top[
-                    [
-                        "Hour",
-                        "Weather_Short",
-                        "Wind_Direction_clean",
-                        "Season",
-                        "Temperature(F)",
-                        "Visibility(mi)",
-                        "Humidity(%)",
-                        "Pressure(in)",
-                        "Wind_Speed(mph)",
-                        "City",
-                    ]
-                ].itertuples(index=False, name=None)
-            )
-    
-            with st.expander("Full scenario table (filtered)"):
-                st.dataframe(
-                    baseline_df.assign(Predicted_Severity=baseline_labels)[
-                    [
-                            "Hour",
-                            "Weather_Short",
-                            "Wind_Direction_clean",
-                            "Season",
-                            "Temperature(F)",
-                            "Visibility(mi)",
-                            "Humidity(%)",
-                            "Pressure(in)",
-                            "Wind_Speed(mph)",
-                            "City",
-                            "Predicted_Severity",
-                            "Confidence",
-                        ]
-                    ]
-                )
-    
-            st.subheader("What-if: intervention suggestions")
-            suggestions = []
-            all_labels = set(baseline_labels.unique())
-            baseline_focus_df = focus_top.copy()
-            baseline_focus_labels = baseline_focus_df["Predicted_Severity"].astype(str)
-            baseline_focus_counts = baseline_focus_labels.value_counts().reindex(all_labels, fill_value=0)
-            baseline_focus_prob = (
-                pd.DataFrame(list(baseline_focus_df["Probabilities"]))
-                .reindex(columns=prob_keys)
-                .mean()
-            )
-            baseline_worst_prob = baseline_focus_prob.get(worst_label, 0)
-    
-            st.caption("Baseline (top high-severity scenarios)")
+        focus_top = top_risky.sort_values("Confidence", ascending=False).head(20)
+        high_risk_scenarios = list(
+            focus_top[
+                [
+                    "Hour",
+                    "Weather_Short",
+                    "Wind_Direction_clean",
+                    "Season",
+                    "Temperature(F)",
+                    "Visibility(mi)",
+                    "Humidity(%)",
+                    "Pressure(in)",
+                    "Wind_Speed(mph)",
+                    "City",
+                ]
+            ].itertuples(index=False, name=None)
+        )
+
+        with st.expander("Full scenario table (filtered)"):
             st.dataframe(
-                baseline_focus_df[
+                baseline_df.assign(Predicted_Severity=baseline_labels)[
                 [
                         "Hour",
                         "Weather_Short",
@@ -579,75 +566,132 @@ def render_accident_app():
                         "Confidence",
                     ]
                 ]
-            )
-    
-            suggestions_data = []
-            for name in intervention_choices:
-                overrides = {name: 1}
-                df = run_scenarios(high_risk_scenarios, overrides)
-                labels = df["Predicted_Severity"].astype(str)
-                counts = labels.value_counts().reindex(all_labels, fill_value=0)
-                delta_worst = counts.get(worst_label, 0) - baseline_focus_counts.get(worst_label, 0)
-                prob_mean = (
-                    pd.DataFrame(list(df["Probabilities"]))
-                    .reindex(columns=prob_keys)
-                    .mean()
-                )
-                delta_prob = prob_mean.get(worst_label, 0) - baseline_worst_prob
-                change_text = "fewer high-severity cases" if delta_worst < 0 or delta_prob < 0 else "no improvement"
-                suggestions_data.append(
-                    {
-                        "name": name,
-                        "delta_worst": delta_worst,
-                        "delta_prob": delta_prob,
-                        "change_text": change_text,
+                .rename(
+                    columns={
+                        "Weather_Short": "Weather",
+                        "Wind_Direction_clean": "Wind Direction",
+                        "Wind_Speed(mph)": "Wind Speed",
+                        "Predicted_Severity": "Severity",
                     }
                 )
-                suggestions.append(f"{name}: {change_text} (delta {delta_worst} count, delta {delta_prob:.3f} prob for '{worst_label}')")
-                st.write(f"Results for {name} (top 20 high-risk scenarios):")
-                df["Confidence"] = df["Probabilities"].apply(lambda d: max(d.values()) if isinstance(d, dict) else 0)
-                st.dataframe(
-                    df[
-                    [
-                            "Hour",
-                            "Weather_Short",
-                            "Wind_Direction_clean",
-                            "Season",
-                            "Temperature(F)",
-                            "Visibility(mi)",
-                            "Humidity(%)",
-                            "Pressure(in)",
-                            "Wind_Speed(mph)",
-                            "City",
-                            "Predicted_Severity",
-                            "Confidence",
-                        ]
-                    ]
-                )
-            if suggestions:
-                for s in suggestions:
-                    st.write("- ", s)
-            else:
-                st.write("No interventions selected or no change observed.")
-    
-            summary_lines = [
-                f"We reviewed the top {len(focus_top)} highest-risk situations. The most severe outcome was '{worst_label}'."
+            )
+
+        st.subheader("What-if: intervention suggestions")
+        suggestions = []
+        all_labels = set(baseline_labels.unique())
+        baseline_focus_df = focus_top.copy()
+        baseline_focus_labels = baseline_focus_df["Predicted_Severity"].astype(str)
+        baseline_focus_counts = baseline_focus_labels.value_counts().reindex(all_labels, fill_value=0)
+        baseline_focus_prob = (
+            pd.DataFrame(list(baseline_focus_df["Probabilities"]))
+            .reindex(columns=prob_keys)
+            .mean()
+        )
+        baseline_worst_prob = baseline_focus_prob.get(worst_label, 0)
+
+        st.caption("Baseline (top high-severity scenarios)")
+        st.dataframe(
+            baseline_focus_df[
+            [
+                    "Hour",
+                    "Weather_Short",
+                    "Wind_Direction_clean",
+                    "Season",
+                    "Temperature(F)",
+                    "Visibility(mi)",
+                    "Humidity(%)",
+                    "Pressure(in)",
+                    "Wind_Speed(mph)",
+                    "City",
+                    "Predicted_Severity",
+                    "Confidence",
+                ]
             ]
-            improvements = [s for s in suggestions_data if s["delta_worst"] < 0 or s["delta_prob"] < 0]
-            if improvements:
-                best = sorted(improvements, key=lambda x: (x["delta_worst"], x["delta_prob"]))[0]
-                summary_lines.append(
-                    f"Adding {best['name'].lower()} reduced the number of '{worst_label}' predictions and lowered risk confidence."
+            .rename(
+                columns={
+                    "Weather_Short": "Weather",
+                    "Wind_Direction_clean": "Wind Direction",
+                    "Wind_Speed(mph)": "Wind Speed",
+                    "Predicted_Severity": "Severity",
+                }
+            )
+        )
+
+        suggestions_data = []
+        for name in intervention_choices:
+            overrides = {name: 1}
+            df = run_scenarios(high_risk_scenarios, overrides)
+            labels = df["Predicted_Severity"].astype(str)
+            counts = labels.value_counts().reindex(all_labels, fill_value=0)
+            delta_worst = counts.get(worst_label, 0) - baseline_focus_counts.get(worst_label, 0)
+            prob_mean = (
+                pd.DataFrame(list(df["Probabilities"]))
+                .reindex(columns=prob_keys)
+                .mean()
+            )
+            delta_prob = prob_mean.get(worst_label, 0) - baseline_worst_prob
+            change_text = "fewer high-severity cases" if delta_worst < 0 or delta_prob < 0 else "no improvement"
+            suggestions_data.append(
+                {
+                    "name": name,
+                    "delta_worst": delta_worst,
+                    "delta_prob": delta_prob,
+                    "change_text": change_text,
+                }
+            )
+            suggestions.append(f"{name}: {change_text} (delta {delta_worst} count, delta {delta_prob:.3f} prob for '{worst_label}')")
+            st.write(f"Results for {name} (top 20 high-risk scenarios):")
+            df["Confidence"] = df["Probabilities"].apply(lambda d: max(d.values()) if isinstance(d, dict) else 0)
+            st.dataframe(
+                df[
+                [
+                        "Hour",
+                        "Weather_Short",
+                        "Wind_Direction_clean",
+                        "Season",
+                        "Temperature(F)",
+                        "Visibility(mi)",
+                        "Humidity(%)",
+                        "Pressure(in)",
+                        "Wind_Speed(mph)",
+                        "City",
+                        "Predicted_Severity",
+                        "Confidence",
+                    ]
+                ]
+                .rename(
+                    columns={
+                        "Weather_Short": "Weather",
+                        "Wind_Direction_clean": "Wind Direction",
+                        "Wind_Speed(mph)": "Wind Speed",
+                        "Predicted_Severity": "Severity",
+                    }
                 )
-            else:
-                summary_lines.append("None of the tested changes reduced the highest severity in this set.")
-            st.info(" ".join(summary_lines))
+            )
+        if suggestions:
+            for s in suggestions:
+                st.write("- ", s)
+        else:
+            st.write("No interventions selected or no change observed.")
+
+        summary_lines = [
+            f"We reviewed the top {len(focus_top)} highest-risk situations. The most severe outcome was '{worst_label}'."
+        ]
+        improvements = [s for s in suggestions_data if s["delta_worst"] < 0 or s["delta_prob"] < 0]
+        if improvements:
+            best = sorted(improvements, key=lambda x: (x["delta_worst"], x["delta_prob"]))[0]
+            summary_lines.append(
+                f"Adding {best['name'].lower()} reduced the number of '{worst_label}' predictions and lowered risk confidence."
+            )
+        else:
+            summary_lines.append("None of the tested changes reduced the highest severity in this set.")
+        st.info(" ".join(summary_lines))
     
         # -----------------------
         # Interactive risk maps (synthetic hotspot view; replace with real geospatial outputs as available)
         # -----------------------
         st.subheader("Interactive Risk Maps")
-        st.caption("Filter by time, weather, or road type to visualize severity hotspots (placeholder data).")
+        st.caption("Model-scored hotspots: ranked by highest predicted severity/confidence.")
     
         hotspot_data = pd.DataFrame(
             [
@@ -733,6 +777,7 @@ def render_accident_app():
                     **row.to_dict(),
                     "Predicted_Severity": str(pred_class),
                     "Confidence": float(max(proba)) if len(proba) else 0.0,
+                    "street": default_street,
                 }
             )
 
@@ -741,14 +786,20 @@ def render_accident_app():
         else:
             pred_df = pd.DataFrame(columns=["Predicted_Severity", "Confidence", "city", "time", "weather", "road", "lat", "lon"])
 
-        if not filtered.empty:
-            view_state = pdk.ViewState(latitude=filtered["lat"].mean(), longitude=filtered["lon"].mean(), zoom=11, pitch=0)
+        # Select the highest-risk points (sorted by predicted severity priority then confidence)
+        severity_priority = {"Major": 3, "Moderate": 2, "Minor": 1}
+        pred_df["severity_score"] = pred_df["Predicted_Severity"].map(lambda x: severity_priority.get(str(x), 0))
+        pred_df_sorted = pred_df.sort_values(["severity_score", "Confidence"], ascending=[False, False])
+        top_hotspots = pred_df_sorted.head(50) if not pred_df_sorted.empty else pred_df_sorted
+
+        if not top_hotspots.empty:
+            view_state = pdk.ViewState(latitude=top_hotspots["lat"].mean(), longitude=top_hotspots["lon"].mean(), zoom=11, pitch=0)
         else:
             view_state = pdk.ViewState(latitude=40.75, longitude=-73.99, zoom=11, pitch=0)
 
         scatter = pdk.Layer(
             "ScatterplotLayer",
-            data=pred_df,
+            data=top_hotspots,
             get_position="[lon, lat]",
             get_fill_color=[200, 30, 0, 160],
             get_radius=120,
@@ -756,21 +807,20 @@ def render_accident_app():
         )
 
         tooltip = {
-            "text": "Predicted: {Predicted_Severity}\nConfidence: {Confidence}\nCity: {city}\nTime: {time}\nWeather: {weather}\nRoad: {road}\nLat: {lat}\nLon: {lon}"
+            "text": "Predicted: {Predicted_Severity}\nConfidence: {Confidence}\nCity: {city}\nStreet: {street}\nTime: {time}\nWeather: {weather}\nRoad: {road}\nLat: {lat}\nLon: {lon}"
         }
 
         st.pydeck_chart(pdk.Deck(layers=[scatter], initial_view_state=view_state, tooltip=tooltip))
 
-        severity_counts = pred_df.get("Predicted_Severity", pd.Series(dtype=str)).value_counts()
-        if not pred_df.empty:
-            st.caption(f"{len(pred_df)} hotspots shown. Most frequent severity: {severity_counts.idxmax()}.")
-            st.bar_chart(severity_counts)
+        severity_counts = top_hotspots.get("Predicted_Severity", pd.Series(dtype=str)).value_counts()
+        if not top_hotspots.empty:
+            st.caption(f"{len(top_hotspots)} highest-risk hotspots shown (ordered by severity and confidence). Most frequent severity: {severity_counts.idxmax()}.")
         else:
             st.caption("No hotspots match the current filters.")
 
         st.dataframe(
-            pred_df[["Predicted_Severity", "Confidence", "city", "time", "weather", "road", "lat", "lon"]]
+            top_hotspots[["Predicted_Severity", "Confidence", "city", "street", "time", "weather", "road", "lat", "lon"]]
             .reset_index(drop=True)
-            .rename(columns={"Predicted_Severity": "Predicted Severity", "city": "City", "time": "Time", "weather": "Weather", "road": "Road Type"})
+            .rename(columns={"Predicted_Severity": "Predicted Severity", "city": "City", "street": "Street", "time": "Time", "weather": "Weather", "road": "Road Type"})
         )
     
