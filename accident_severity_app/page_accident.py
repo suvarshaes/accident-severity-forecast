@@ -264,19 +264,38 @@ def render_accident_app():
     use_advanced = st.sidebar.checkbox("Use advanced scenario inputs", value=False)
     high_risk_hours = [18, 19, 20, 21, 22, 23]
     if use_advanced:
+        # Default advanced selections now use relevant low/median/high samples around the region defaults
+        def low_med_high(values, default):
+            vals = sorted(values)
+            median = default
+            low = vals[0] if vals else default
+            high = vals[-1] if vals else default
+            return sorted({low, median, high})
+
+        def clamp_defaults(options, picks):
+            filtered = [v for v in picks if v in options]
+            return filtered if filtered else options
+
+        extreme_temps = clamp_defaults(temp_samples_default, low_med_high(temp_samples_default, region_defaults["Temperature(F)"]))
+        extreme_visibility = clamp_defaults(visibility_samples_default, low_med_high(visibility_samples_default, region_defaults["Visibility(mi)"]))
+        extreme_humidity = clamp_defaults(humidity_samples_default, low_med_high(humidity_samples_default, region_defaults["Humidity(%)"]))
+        extreme_pressure = clamp_defaults(pressure_samples_default, low_med_high(pressure_samples_default, region_defaults["Pressure(in)"]))
+        extreme_wind_speeds = clamp_defaults(wind_speed_samples_default, low_med_high(wind_speed_samples_default, region_defaults["Wind_Speed(mph)"]))
+
         selected_hours = st.sidebar.multiselect("Hours (24h) for scenarios", HOURS, default=high_risk_hours) or high_risk_hours
         selected_seasons = st.sidebar.multiselect("Seasons for scenarios", SEASONS, default=SEASONS) or SEASONS
         selected_winds = st.sidebar.multiselect("Wind directions", WIND_DIRECTIONS, default=WIND_DIRECTIONS) or WIND_DIRECTIONS
         selected_weather_shorts = st.sidebar.multiselect("Weather (short)", WEATHER_SHORTS, default=WEATHER_SHORTS) or WEATHER_SHORTS
-        selected_temps = st.sidebar.multiselect("Temperature samples (F)", temp_samples_default, default=temp_samples_default) or temp_samples_default
-        selected_visibility = st.sidebar.multiselect("Visibility samples (mi)", visibility_samples_default, default=visibility_samples_default) or visibility_samples_default
-        selected_humidity = st.sidebar.multiselect("Humidity samples (%)", humidity_samples_default, default=humidity_samples_default) or humidity_samples_default
-        selected_pressure = st.sidebar.multiselect("Pressure samples (in)", pressure_samples_default, default=pressure_samples_default) or pressure_samples_default
-        selected_wind_speeds = st.sidebar.multiselect("Wind speed samples (mph)", wind_speed_samples_default, default=wind_speed_samples_default) or wind_speed_samples_default
+        selected_temps = st.sidebar.multiselect("Temperature samples (F)", temp_samples_default, default=extreme_temps) or extreme_temps
+        selected_visibility = st.sidebar.multiselect("Visibility samples (mi)", visibility_samples_default, default=extreme_visibility) or extreme_visibility
+        selected_humidity = st.sidebar.multiselect("Humidity samples (%)", humidity_samples_default, default=extreme_humidity) or extreme_humidity
+        selected_pressure = st.sidebar.multiselect("Pressure samples (in)", pressure_samples_default, default=extreme_pressure) or extreme_pressure
+        selected_wind_speeds = st.sidebar.multiselect("Wind speed samples (mph)", wind_speed_samples_default, default=extreme_wind_speeds) or extreme_wind_speeds
     else:
         selected_hours = high_risk_hours
         selected_seasons = SEASONS
-        selected_winds = WIND_DIRECTIONS
+        # Default to a limited set of wind directions to keep the grid lighter by default
+        selected_winds = WIND_DIRECTIONS[:10] if len(WIND_DIRECTIONS) > 10 else WIND_DIRECTIONS
         selected_weather_shorts = WEATHER_SHORTS
         selected_temps = temp_samples_default
         selected_visibility = visibility_samples_default
@@ -305,10 +324,18 @@ def render_accident_app():
     st.sidebar.markdown("### Try infrastructure interventions")
     st.sidebar.caption("Select features to add (set to 1) during scenario evaluation.")
     available_to_add = [f for f in infra_features if current_flags.get(f, 0) == 0]
+    effective_priority = ["Traffic_Signal", "Traffic_Calming", "Roundabout", "Crossing", "Bump", "Stop"]
+    prioritized_options = [f for f in effective_priority if f in (available_to_add if available_to_add else infra_features)]
+    remaining_options = [
+        f for f in (available_to_add if available_to_add else infra_features) if f not in prioritized_options
+    ]
+    ordered_options = prioritized_options + remaining_options
+    default_effective = prioritized_options[:4] if prioritized_options else ["Traffic_Signal", "Traffic_Calming", "Crossing"]
     intervention_choices = st.sidebar.multiselect(
         "Interventions to add",
-        available_to_add if available_to_add else infra_features,
-        default=available_to_add[:3] if available_to_add else [],
+        ordered_options,
+        default=default_effective,
+        help="Effective controls are preselected (signals, calming, roundabout/crossing). Add or remove as needed.",
     )
 
     def build_scenarios(
@@ -373,14 +400,14 @@ def render_accident_app():
     scenario_inputs_df = pd.DataFrame(
         [
             {"Factor": "Hours", "Count": len(selected_hours), "Values": ", ".join(map(str, selected_hours))},
-            {"Factor": "Weather_Short", "Count": len(selected_weather_shorts), "Values": ", ".join(map(str, selected_weather_shorts))},
-            {"Factor": "Wind_Direction_clean", "Count": len(selected_winds), "Values": ", ".join(map(str, selected_winds))},
+            {"Factor": "Weather", "Count": len(selected_weather_shorts), "Values": ", ".join(map(str, selected_weather_shorts))},
+            {"Factor": "Wind Direction", "Count": len(selected_winds), "Values": ", ".join(map(str, selected_winds))},
             {"Factor": "Season", "Count": len(selected_seasons), "Values": ", ".join(map(str, selected_seasons))},
             {"Factor": "Temperature(F)", "Count": len(selected_temps), "Values": ", ".join(map(str, selected_temps))},
             {"Factor": "Visibility(mi)", "Count": len(selected_visibility), "Values": ", ".join(map(str, selected_visibility))},
             {"Factor": "Humidity(%)", "Count": len(selected_humidity), "Values": ", ".join(map(str, selected_humidity))},
             {"Factor": "Pressure(in)", "Count": len(selected_pressure), "Values": ", ".join(map(str, selected_pressure))},
-            {"Factor": "Wind_Speed(mph)", "Count": len(selected_wind_speeds), "Values": ", ".join(map(str, selected_wind_speeds))},
+            {"Factor": "Wind Speed", "Count": len(selected_wind_speeds), "Values": ", ".join(map(str, selected_wind_speeds))},
             {"Factor": "Cities", "Count": len(cities_to_use), "Values": ", ".join(map(str, cities_to_use))},
             {"Factor": "Scenario cap", "Count": scenario_cap, "Values": f"Cap at {scenario_cap}"},
         ]
@@ -466,6 +493,9 @@ def render_accident_app():
         return pd.DataFrame(results)
     
     if st.sidebar.button("Predict Severity Across Weather Scenarios"):
+        st.session_state["run_predict"] = True
+
+    if st.session_state.get("run_predict"):
         baseline_df = run_scenarios(scenarios, {})
         baseline_labels = baseline_df["Predicted_Severity"].astype(str)
         baseline_df["Confidence"] = baseline_df["Probabilities"].apply(lambda d: max(d.values()) if isinstance(d, dict) else 0)
@@ -630,7 +660,7 @@ def render_accident_app():
                 .mean()
             )
             delta_prob = prob_mean.get(worst_label, 0) - baseline_worst_prob
-            change_text = "fewer high-severity cases" if delta_worst < 0 or delta_prob < 0 else "no improvement"
+            change_text = "lower risk" if delta_worst < 0 or delta_prob < 0 else "no improvement or higher risk"
             suggestions_data.append(
                 {
                     "name": name,
@@ -639,7 +669,10 @@ def render_accident_app():
                     "change_text": change_text,
                 }
             )
-            suggestions.append(f"{name}: {change_text} (delta {delta_worst} count, delta {delta_prob:.3f} prob for '{worst_label}')")
+            direction = "down" if delta_worst < 0 or delta_prob < 0 else "up or unchanged"
+            suggestions.append(
+                f"{name}: {change_text} — count {delta_worst}, prob {delta_prob:.3f} ({direction} for '{worst_label}')"
+            )
             st.write(f"Results for {name} (top 20 high-risk scenarios):")
             df["Confidence"] = df["Probabilities"].apply(lambda d: max(d.values()) if isinstance(d, dict) else 0)
             st.dataframe(
@@ -669,6 +702,7 @@ def render_accident_app():
                 )
             )
         if suggestions:
+            st.caption("Note: count is change in worst-severity cases; prob is change in worst-class confidence (positive = higher risk, negative = lower risk).")
             for s in suggestions:
                 st.write("- ", s)
         else:
@@ -695,22 +729,41 @@ def render_accident_app():
     
         hotspot_data = pd.DataFrame(
             [
-                {"lat": 40.75, "lon": -73.99, "severity": "Major", "time": "evening", "weather": "Rain", "road": "Arterial", "city": "New York"},
-                {"lat": 40.73, "lon": -73.98, "severity": "Moderate", "time": "morning", "weather": "Clear", "road": "Arterial", "city": "New York"},
-                {"lat": 40.71, "lon": -74.01, "severity": "Major", "time": "night", "weather": "Snow", "road": "Highway", "city": "New York"},
-                {"lat": 40.78, "lon": -73.95, "severity": "Minor", "time": "day", "weather": "Clear", "road": "Local", "city": "New York"},
-                {"lat": 40.69, "lon": -73.99, "severity": "Moderate", "time": "evening", "weather": "Rain", "road": "Highway", "city": "Brooklyn"},
-                {"lat": 40.77, "lon": -73.97, "severity": "Major", "time": "night", "weather": "Fog", "road": "Arterial", "city": "New York"},
-                {"lat": 40.72, "lon": -74.02, "severity": "Moderate", "time": "day", "weather": "Cloudy", "road": "Local", "city": "New York"},
-                {"lat": 40.74, "lon": -73.93, "severity": "Minor", "time": "morning", "weather": "Clear", "road": "Local", "city": "Queens"},
-                {"lat": 40.70, "lon": -73.90, "severity": "Major", "time": "evening", "weather": "Rain", "road": "Highway", "city": "Queens"},
-                {"lat": 40.68, "lon": -73.92, "severity": "Moderate", "time": "night", "weather": "Fog", "road": "Arterial", "city": "Brooklyn"},
+                {"lat": 40.75, "lon": -73.99, "severity": "Major", "time": "evening", "weather": "Rain", "road": "Arterial", "city": "New York", "street": "8th Ave"},
+                {"lat": 40.73, "lon": -73.98, "severity": "Moderate", "time": "morning", "weather": "Clear", "road": "Arterial", "city": "New York", "street": "5th Ave"},
+                {"lat": 40.71, "lon": -74.01, "severity": "Major", "time": "night", "weather": "Snow", "road": "Highway", "city": "New York", "street": "Broadway"},
+                {"lat": 40.78, "lon": -73.95, "severity": "Minor", "time": "day", "weather": "Clear", "road": "Local", "city": "New York", "street": "Madison Ave"},
+                {"lat": 40.69, "lon": -73.99, "severity": "Moderate", "time": "evening", "weather": "Rain", "road": "Highway", "city": "Brooklyn", "street": "Flatbush Ave"},
+                {"lat": 40.77, "lon": -73.97, "severity": "Major", "time": "night", "weather": "Fog", "road": "Arterial", "city": "New York", "street": "Lexington Ave"},
+                {"lat": 40.72, "lon": -74.02, "severity": "Moderate", "time": "day", "weather": "Cloudy", "road": "Local", "city": "New York", "street": "Hudson St"},
+                {"lat": 40.74, "lon": -73.93, "severity": "Minor", "time": "morning", "weather": "Clear", "road": "Local", "city": "Queens", "street": "Roosevelt Ave"},
+                {"lat": 40.70, "lon": -73.90, "severity": "Major", "time": "evening", "weather": "Rain", "road": "Highway", "city": "Queens", "street": "Queens Blvd"},
+                {"lat": 40.68, "lon": -73.92, "severity": "Moderate", "time": "night", "weather": "Fog", "road": "Arterial", "city": "Brooklyn", "street": "Atlantic Ave"},
             ]
         )
     
-        time_filter = st.selectbox("Time of day", ["All", "morning", "day", "evening", "night"], index=0)
-        weather_filter = st.selectbox("Weather", ["All", "Clear", "Rain", "Snow", "Fog", "Cloudy"], index=0)
-        road_filter = st.selectbox("Road type", ["All", "Highway", "Arterial", "Local"], index=0)
+        # Simple filters with persistent state; apply immediately without a separate submit
+        st.session_state.setdefault("hotspot_time", "All")
+        st.session_state.setdefault("hotspot_weather", "All")
+        st.session_state.setdefault("hotspot_road", "All")
+        st.selectbox(
+            "Time of day",
+            ["All", "morning", "day", "evening", "night"],
+            key="hotspot_time",
+        )
+        st.selectbox(
+            "Weather",
+            ["All", "Clear", "Rain", "Snow", "Fog", "Cloudy"],
+            key="hotspot_weather",
+        )
+        st.selectbox(
+            "Road type",
+            ["All", "Highway", "Arterial", "Local"],
+            key="hotspot_road",
+        )
+        time_filter = st.session_state["hotspot_time"]
+        weather_filter = st.session_state["hotspot_weather"]
+        road_filter = st.session_state["hotspot_road"]
     
         filtered = hotspot_data.copy()
         if time_filter != "All":
@@ -724,6 +777,21 @@ def render_accident_app():
         time_to_hour = {"morning": 8, "day": 12, "evening": 18, "night": 23}
         season_today = season_from_month(date.today().month)
         pred_records = []
+        map_infra_off = {
+            "Amenity": 0,
+            "Bump": 0,
+            "Crossing": 0,
+            "Give_Way": 0,
+            "Junction": 0,
+            "No_Exit": 0,
+            "Railway": 0,
+            "Roundabout": 0,
+            "Station": 0,
+            "Stop": 0,
+            "Traffic_Calming": 0,
+            "Traffic_Signal": 0,
+            "Turning_Loop": 0,
+        }
         for _, row in filtered.iterrows():
             hour = time_to_hour.get(row["time"], 12)
             street_code = street_mapping.get(default_street, 0)
@@ -752,39 +820,30 @@ def render_accident_app():
                 "Wind_Direction_clean": selected_winds[0] if isinstance(selected_winds, list) and selected_winds else selected_winds,
                 "Weather_Short": row["weather"],
                 "Season": season_today,
-                "Amenity": int(amenity),
-                "Bump": int(bump),
-                "Crossing": int(crossing),
-                "Give_Way": int(give_way),
-                "Junction": int(junction),
-                "No_Exit": int(no_exit),
-                "Railway": int(railway),
-                "Roundabout": int(roundabout),
-                "Station": int(station),
-                "Stop": int(stop),
-                "Traffic_Calming": int(traffic_calming),
-                "Traffic_Signal": int(traffic_signal),
-                "Turning_Loop": int(turning_loop),
             }
+            input_row.update(map_infra_off)
             input_df = pd.DataFrame([input_row], columns=FEATURES)
             pool = Pool(input_df, cat_features=[col for col in CATEGORICAL_COLS if col in input_df.columns])
             pred_class = model.predict(pool, prediction_type="Class")[0]
             if isinstance(pred_class, (list, tuple, np.ndarray)):
                 pred_class = pred_class[0]
             proba = model.predict_proba(pool)[0]
+            street_display = row.get("street", default_street)
             pred_records.append(
                 {
                     **row.to_dict(),
                     "Predicted_Severity": str(pred_class),
                     "Confidence": float(max(proba)) if len(proba) else 0.0,
-                    "street": default_street,
+                    "street": street_display,
                 }
             )
 
         if pred_records:
             pred_df = pd.DataFrame(pred_records)
         else:
-            pred_df = pd.DataFrame(columns=["Predicted_Severity", "Confidence", "city", "time", "weather", "road", "lat", "lon"])
+            pred_df = pd.DataFrame(
+                columns=["Predicted_Severity", "Confidence", "city", "street", "time", "weather", "road", "lat", "lon"]
+            )
 
         # Select the highest-risk points (sorted by predicted severity priority then confidence)
         severity_priority = {"Major": 3, "Moderate": 2, "Minor": 1}
@@ -819,8 +878,19 @@ def render_accident_app():
             st.caption("No hotspots match the current filters.")
 
         st.dataframe(
-            top_hotspots[["Predicted_Severity", "Confidence", "city", "street", "time", "weather", "road", "lat", "lon"]]
+            top_hotspots.reindex(
+                columns=["Predicted_Severity", "Confidence", "city", "street", "time", "weather", "road", "lat", "lon"]
+            )
             .reset_index(drop=True)
-            .rename(columns={"Predicted_Severity": "Predicted Severity", "city": "City", "street": "Street", "time": "Time", "weather": "Weather", "road": "Road Type"})
+            .rename(
+                columns={
+                    "Predicted_Severity": "Predicted Severity",
+                    "city": "City",
+                    "street": "Street",
+                    "time": "Time",
+                    "weather": "Weather",
+                    "road": "Road Type",
+                }
+            )
         )
     
