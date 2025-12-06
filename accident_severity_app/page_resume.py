@@ -13,11 +13,11 @@ def render_resume():
     st.markdown("### Work Experience")
     st.write(
         """
-          •	Ernst & Young Pvt Ltd, (December 2013 - October 2021)
-          •	EXL Services, (February 2012 - December 2013)
-          •	Anya Technologies (October 2009 - January 2012)
+          - Ernst & Young Pvt Ltd (December 2013 - October 2021)
+          -	EXL Services (February 2012 - December 2013)
+          -	Anya Technologies (October 2009 - January 2012)
 
         """
     )
-    st.markdown("### Hi, I'm Suvarsha!")
-    st.image("IMG_8491.jpg", width=300)
+    # st.markdown("### Hi, I'm Suvarsha!")
+    # st.image("IMG_8491.jpg", width=300)

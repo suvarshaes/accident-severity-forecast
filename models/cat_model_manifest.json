@@ -1,0 +1,51 @@
+{
+  "model_name": "catboost",
+  "saved_path": "models\\catboost.cbm",
+  "trained_on": "2025-12-04 23:42:53",
+  "random_seed": 42,
+  "feature_cols": [
+    "Distance(mi)",
+    "Temperature(F)",
+    "Visibility(mi)",
+    "Humidity(%)",
+    "Pressure(in)",
+    "Wind_Speed(mph)",
+    "Hour",
+    "Duration_min",
+    "City_encoded",
+    "County",
+    "Wind_Direction_clean",
+    "Weather_Short",
+    "Season",
+    "Amenity",
+    "Bump",
+    "Crossing",
+    "Give_Way",
+    "Junction",
+    "No_Exit",
+    "Railway",
+    "Roundabout",
+    "Station",
+    "Stop",
+    "Traffic_Calming",
+    "Traffic_Signal",
+    "Turning_Loop"
+  ],
+  "category_cols": [
+    "City_encoded",
+    "County",
+    "Wind_Direction_clean",
+    "Weather_Short",
+    "Season"
+  ],
+  "target_col": "Severity_Class",
+  "best_params": {
+    "subsample": 0.8,
+    "learning_rate": 0.05,
+    "l2_leaf_reg": 5,
+    "iterations": 400,
+    "depth": 8,
+    "border_count": 128
+  },
+  "weighted_f1_test": 0.8532139046631263
+}

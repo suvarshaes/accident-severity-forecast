@@ -3,12 +3,8 @@ import streamlit as st
 
 def render_projects():
     st.title("Projects")
-    st.write("Add your completed projects below. Keep coursework private to respect academic integrity.")
     st.markdown(
         """
-        - Project One — placeholder description and link.
-        - Project Two — placeholder description and link.
-        - Project Three — placeholder description and link.
-        - Accident Severity App — this project (see dedicated tab).
+        - **Accident Severity App** — Location-aware CatBoost model that predicts Major/Moderate/Minor crash severity using weather, time, location, and infrastructure features. Includes scenario generation, intervention what-ifs, and interactive risk maps to support planners and safety officials.
         """
     )

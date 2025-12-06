@@ -27,13 +27,15 @@ st.markdown(
 # Single-page rendering with a tab-like selector; sidebar appears only on Accident Severity App
 page = st.segmented_control(
     "Menu",
-    ["Home", "Resume", "Projects", "Accident Severity App"],
+    ["Home", "Accident Severity App", "Resume", "Projects"],
     default="Accident Severity App",
     label_visibility="collapsed",
 )
 
 if page == "Home":
     render_home()
+elif page == "Accident Severity App":
+    render_accident_app()
 elif page == "Resume":
     render_resume()
 elif page == "Projects":

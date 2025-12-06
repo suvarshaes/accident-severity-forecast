@@ -276,7 +276,8 @@ def render_accident_app():
             filtered = [v for v in picks if v in options]
             return filtered if filtered else options
 
-        extreme_temps = clamp_defaults(temp_samples_default, low_med_high(temp_samples_default, region_defaults["Temperature(F)"]))
+        more_temps = clamp_defaults(temp_samples_default, sorted(set(temp_samples_default + [region_defaults["Temperature(F)"] - 15, region_defaults["Temperature(F)"] + 15])))
+        extreme_temps = clamp_defaults(more_temps, low_med_high(more_temps, region_defaults["Temperature(F)"]))
         extreme_visibility = clamp_defaults(visibility_samples_default, low_med_high(visibility_samples_default, region_defaults["Visibility(mi)"]))
         extreme_humidity = clamp_defaults(humidity_samples_default, low_med_high(humidity_samples_default, region_defaults["Humidity(%)"]))
         extreme_pressure = clamp_defaults(pressure_samples_default, low_med_high(pressure_samples_default, region_defaults["Pressure(in)"]))
