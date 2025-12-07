@@ -19,11 +19,4 @@ I live in New Jersey with my husband and our two wonderful kids. Outside of work
         )
     with col2:
         st.image("IMG_8491.jpg", width=300)
-    # st.markdown("### Academic Background")
-    # st.write("Master’s Degree in Computer Science in 2009 from India.Bachelor degree in Chemistry from India")
-    # st.markdown("### Career Aspirations")
-    # st.write("Placeholder: roles, domains, and impact you aim to make.")
-    # st.markdown("### Professional Interests")
-    # st.write("- Placeholder interest 1\n- Placeholder interest 2\n- Placeholder interest 3")
-    # st.markdown("### Personal Notes")
-    # st.write("Placeholder: hobbies, interests, or a unique fact about you.")
+    

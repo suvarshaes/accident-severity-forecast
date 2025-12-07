@@ -19,5 +19,4 @@ def render_resume():
 
         """
     )
-    # st.markdown("### Hi, I'm Suvarsha!")
-    # st.image("IMG_8491.jpg", width=300)
+   

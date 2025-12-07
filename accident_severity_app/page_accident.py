@@ -526,7 +526,7 @@ def render_accident_app():
         top_prob_value = baseline_prob_mean.max()
         st.info(
             f"Overall, the model leans toward **{top_prob_label}** with an average confidence of {top_prob_value:.2f}. "
-            "Use this as a quick headline: higher average confidence means the model is more certain about that outcome across the tested situations."
+            f"( higher average confidence means the model is more certain about that outcome across the tested situations.)"
         )
         classes_text = ", ".join(map(str, model.classes_)) if hasattr(model, "classes_") else "Major, Moderate, Minor"
         # Intentionally removed detailed model summary text per request
