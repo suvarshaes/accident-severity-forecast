@@ -6,6 +6,7 @@ import plotly.express as px
 import numpy as np
 from datetime import datetime
 import os
+from pathlib import Path
 
 # Set page config
 st.set_page_config(
@@ -24,7 +25,13 @@ This application visualizes traffic accident data in New Jersey, helping identif
 def load_data():
     """Load and cache the accident data"""
     try:
-        df = pd.read_csv('../data/raw/US_Accidents_March23_NJ.csv')
+        data_path = (
+            Path(__file__).resolve().parents[1]
+            / 'data'
+            / 'raw'
+            / 'US_Accidents_March23_NJ.csv'
+        )
+        df = pd.read_csv(data_path)
         df['Start_Time'] = pd.to_datetime(df['Start_Time'])
         return df
     except Exception as e:
